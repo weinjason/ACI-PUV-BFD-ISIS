@@ -202,6 +202,7 @@ Items                                           | Defect       | This Script    
 [Multi-Pod Modular Spine Bootscript File][d32]  | CSCwr66848   | :white_check_mark: | :no_entry_sign:
 [Inband Management Policy Misconfiguration][d33]| CSCwd40071   | :white_check_mark: | :no_entry_sign:
 [Fabric BFD on ISIS][d34]                       | N/A          | :white_check_mark: | :no_entry_sign:
+[BGP Node Context Policy Conflict][d35]         | CSCwt78235   | :white_check_mark: | :no_entry_sign:
 
 [d1]: #ep-announce-compatibility
 [d2]: #eventmgr-db-size-defect-susceptibility
@@ -237,6 +238,7 @@ Items                                           | Defect       | This Script    
 [d32]: #multi-pod-modular-spine-bootscript-file
 [d33]: #inband-management-policy-misconfiguration
 [d34]: #fabric-bfd-on-isis
+[d35]: #bgp-node-context-policy-conflict
 
 ## General Check Details
 
@@ -2713,6 +2715,13 @@ Enabling Fabric BFD (BFD on ISIS) is not recommended. The operational benefit is
 This check fails if any `l3IfPol` (Fabric > Fabric Policies > Policies > Interface > L3 Interface) has `bfdIsis` set to `enabled`. Disable Fabric BFD on ISIS before upgrade or downgrade.
 
 
+### BGP Node Context Policy Conflict
+
+Per [CSCwt78235][70], the APIC rejects configurations in which the same fabric node has multiple L3Out logical node profiles in the same VRF that reference different BGP Node Context (timer) Policies. The conflict raises fault `F0467` with cause `bgpProt-policy-already-existing` on the affected node and only one BGP Node Context Policy is allowed per node per VRF.
+
+This check walks all L3Outs and their attached nodes (`l3extRsEctx`, `l3extRsNodeL3OutAtt`, `bgpRsBgpNodeCtxPol`) and fails if any node, within the same VRF, ends up bound to more than one distinct `bgpCtxPol` `tDn`. To resolve, reconcile the BGP Node Context Policy on the affected node(s) so that all logical node profiles attached to the same node within the same VRF reference the same `bgpCtxPol`. If a change was attempted, delete the old reference before adding the new one.
+
+
 ### Policydist configpushShardCont crash
 
 In ACI, there are internal objects which track the underlying transactions which occur as policies are handled by the Policydist process. One such object is `configpushShardCont` which populates the `headTx` and `tailTx` parameters to mark any potentially stuck transactions.
@@ -2867,3 +2876,4 @@ This check will verify the count of the `svccoreCtrlr` Managed Object and raise 
 [67]: https://bst.cloudapps.cisco.com/bugsearch/bug/CSCwh80837
 [68]: https://bst.cloudapps.cisco.com/bugsearch/bug/CSCwd40071
 [69]: https://bst.cloudapps.cisco.com/bugsearch/bug/CSCws84232
+[70]: https://bst.cloudapps.cisco.com/bugsearch/bug/CSCwt78235

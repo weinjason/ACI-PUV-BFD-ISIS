@@ -1,0 +1,18 @@
+[
+    {
+        "l3extRsNodeL3OutAtt": {
+            "attributes": {
+                "dn": "uni/tn-common/out-out1/lnodep-np1/rsnodeL3OutAtt-[topology/pod-1/protnodes-101-102]",
+                "tDn": "topology/pod-1/protnodes-101-102"
+            }
+        }
+    },
+    {
+        "l3extRsNodeL3OutAtt": {
+            "attributes": {
+                "dn": "uni/tn-common/out-out2/lnodep-np2/rsnodeL3OutAtt-[topology/pod-1/protnodes-101-102]",
+                "tDn": "topology/pod-1/protnodes-101-102"
+            }
+        }
+    }
+]

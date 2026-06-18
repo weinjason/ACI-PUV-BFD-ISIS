@@ -3775,6 +3775,80 @@ def fabric_bfd_isis_check(**kwargs):
     return Result(result=result, headers=headers, data=data, recommended_action=recommended_action, doc_url=doc_url)
 
 
+@check_wrapper(check_title="BGP Node Context Policy Conflict")
+def bgp_node_ctx_pol_conflict_check(**kwargs):
+    result = PASS
+    headers = ["VRF", "Node ID", "Conflicting BGP Node Context Policies", "Logical Node Profiles"]
+    data = []
+    recommended_action = ('Reconcile the BGP Node Context Policy on the affected node(s) so that all '
+                          'L3Out logical node profiles attached to the same node within the same VRF '
+                          'reference the same bgpCtxPol. If a change was attempted, delete the old '
+                          'reference before adding the new one.')
+    doc_url = 'https://datacenter.github.io/ACI-Pre-Upgrade-Validation-Script/validations/#bgp-node-context-policy-conflict'
+
+    # 1. Map each L3Out DN to the VRF DN (via l3extRsEctx tDn).
+    out_to_vrf = {}
+    for ectx in icurl('class', 'l3extRsEctx.json'):
+        attrs = ectx['l3extRsEctx']['attributes']
+        if attrs.get('state', 'formed') != 'formed':
+            continue
+        # l3extRsEctx.dn is always L3Out DN + "/rsectx"
+        out_dn = attrs['dn'].rsplit('/rsectx', 1)[0]
+        out_to_vrf[out_dn] = attrs['tDn']
+
+    if not out_to_vrf:
+        return Result(result=result, headers=headers, data=data, recommended_action=recommended_action, doc_url=doc_url)
+
+    # 2. Map each l3extLNodeP DN to the list of node-ids attached.
+    lnodep_to_nodes = {}
+    node_dn_re = re.compile(r"topology/pod-\d+/(?:prot)?node[s]?-(\S+)$")
+    for rsn in icurl('class', 'l3extRsNodeL3OutAtt.json'):
+        attrs = rsn['l3extRsNodeL3OutAtt']['attributes']
+        m = node_dn_re.search(attrs.get('tDn', ''))
+        if not m:
+            continue
+        # l3extRsNodeL3OutAtt.dn = lnodep_dn + "/rsnodeL3OutAtt-..."
+        lnodep_dn = attrs['dn'].rsplit('/rsnodeL3OutAtt-', 1)[0]
+        lnodep_to_nodes.setdefault(lnodep_dn, []).append(m.group(1))
+
+    if not lnodep_to_nodes:
+        return Result(result=result, headers=headers, data=data, recommended_action=recommended_action, doc_url=doc_url)
+
+    # 3. Build (vrf_dn, node_id) -> {pol_tdn: [lnodep_dn, ...]} from every
+    # formed bgpRsBgpNodeCtxPol relation.
+    conflicts_per_vrf_node = {}
+    for rb in icurl('class', 'bgpRsBgpNodeCtxPol.json'):
+        attrs = rb['bgpRsBgpNodeCtxPol']['attributes']
+        if attrs.get('state', 'formed') != 'formed':
+            continue
+        # bgpRsBgpNodeCtxPol.dn = lnodep_dn + "/protp/rsbgpNodeCtxPol"
+        rs_dn = attrs['dn']
+        if '/protp/rsbgpNodeCtxPol' not in rs_dn:
+            continue
+        lnodep_dn = rs_dn.rsplit('/protp/rsbgpNodeCtxPol', 1)[0]
+        out_dn = lnodep_dn.rsplit('/lnodep-', 1)[0]
+        vrf_dn = out_to_vrf.get(out_dn)
+        if not vrf_dn:
+            continue
+        pol_tdn = attrs.get('tDn', '')
+        for node_id in lnodep_to_nodes.get(lnodep_dn, []):
+            key = (vrf_dn, node_id)
+            conflicts_per_vrf_node.setdefault(key, {}).setdefault(pol_tdn, []).append(lnodep_dn)
+
+    # 4. Flag any (vrf, node) pair with more than one distinct pol tDn.
+    for (vrf_dn, node_id), pol_map in sorted(conflicts_per_vrf_node.items()):
+        if len(pol_map) <= 1:
+            continue
+        pol_list = ", ".join(sorted(pol_map.keys()))
+        lnodep_list = ", ".join(sorted({ln for lns in pol_map.values() for ln in lns}))
+        data.append([vrf_dn, node_id, pol_list, lnodep_list])
+
+    if data:
+        result = FAIL_O
+
+    return Result(result=result, headers=headers, data=data, recommended_action=recommended_action, doc_url=doc_url)
+
+
 @check_wrapper(check_title="BGP route target type for GOLF over L2EVPN")
 def bgp_golf_route_target_type_check(cversion, tversion, **kwargs):
     result = FAIL_O
@@ -6485,6 +6559,7 @@ class CheckManager:
         intersight_upgrade_status_check,
         isis_redis_metric_mpod_msite_check,
         fabric_bfd_isis_check,
+        bgp_node_ctx_pol_conflict_check,
         bgp_golf_route_target_type_check,
         docker0_subnet_overlap_check,
         uplink_limit_check,

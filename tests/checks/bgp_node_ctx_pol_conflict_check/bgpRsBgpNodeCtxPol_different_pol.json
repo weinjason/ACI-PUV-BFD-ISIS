@@ -1,0 +1,20 @@
+[
+    {
+        "bgpRsBgpNodeCtxPol": {
+            "attributes": {
+                "dn": "uni/tn-common/out-out1/lnodep-np1/protp/rsbgpNodeCtxPol",
+                "tDn": "uni/tn-common/bgpCtxP-timer1",
+                "state": "formed"
+            }
+        }
+    },
+    {
+        "bgpRsBgpNodeCtxPol": {
+            "attributes": {
+                "dn": "uni/tn-common/out-out2/lnodep-np2/protp/rsbgpNodeCtxPol",
+                "tDn": "uni/tn-common/bgpCtxP-timer2",
+                "state": "formed"
+            }
+        }
+    }
+]
